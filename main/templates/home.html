@@ -1,7 +1,20 @@
 {% extends 'partials/base.html' %}
+
 {% block title %}Home{% endblock %}
+
 {% block content %}
-<div class="text-center">
-    <h1>Home Page</h1>
+<div class="container py-5">
+    <h1 class="text-center mb-4">🧭 Anime Character Quote Scraper</h1>
+
+    <!-- Form -->
+    <form method="POST" action="{% url 'train_character' %}" class="card p-4 shadow-sm mx-auto mb-4" style="max-width: 500px;">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="character" class="form-label">Enter Character Name</label>
+            <input type="text" name="character" id="character" class="form-control" placeholder="e.g. Monkey D. Luffy"
+                required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Train Character Model</button>
+    </form>
 </div>
 {% endblock %}

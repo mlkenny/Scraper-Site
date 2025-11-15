@@ -1,0 +1,13 @@
+{% extends 'partials/base.html' %}
+
+{% block title %}Training{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+    <h2>Model Training Started for {{ character }}!</h2>
+    <h3>Training Time: {{ train_time }}</h3>
+    <a href="{% url 'home' %}" class="btn btn-secondary mt-4">
+        ⬅ Back to Character Selection
+    </a>
+</div>
+{% endblock %}

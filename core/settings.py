@@ -39,6 +39,7 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
+SERPAPI_KEY = env('SERPAPI_KEY')
 
 # Database
 DATABASES = {
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'main',
+    'scraper',
     'crispy_forms',
     'crispy_bootstrap5',
 ]
