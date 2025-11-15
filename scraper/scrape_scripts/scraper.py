@@ -13,12 +13,10 @@ Usage:
   py ./main/scripts/scraper.py --character "Monkey D. Luffy" --max-urls 12 --out luffy_quotes.csv
 """
 
-import os
 import re
 import csv
 import time
 import html
-import json
 import argparse
 import threading
 from urllib.parse import urlparse

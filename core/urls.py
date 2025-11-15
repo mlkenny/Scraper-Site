@@ -18,10 +18,13 @@ from django.contrib import admin
 from django.urls import path
 
 import main.views as main_views
+import scraper.views as scraper_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', main_views.home, name='home'),
     path('about/', main_views.about, name='about'),
     path('contact/', main_views.contact, name='contact'),
+
+    path('train/', scraper_views.train_character, name='train_character'),
 ]
