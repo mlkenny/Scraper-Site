@@ -1,4 +1,4 @@
-from . import scraper as sc
+from . import scraper
 
 import time
 import csv
@@ -15,23 +15,43 @@ class ScraperManager:
         # Create the Character Object
         Character.objects.get_or_create(name=character_name, dataset_path=str(file_path))
 
+    def character_has_model(self, character_name):
+        # Look up the character by name (case-insensitive)
+        character = Character.objects.filter(name__iexact=character_name.strip()).first()
+
+        # Return True only if the character exists AND has a related model
+        if character and character.model is not None:
+            return True
+        else:
+            return False
+
     def scrape(self):
+        ''' Check If Dataset Exists to Avoid Double Scraping '''
+        ''' Check if Character has Model or not to Avoid Double Scraping '''
+        base_dir = Path(__file__).resolve().parent.parent
+        csv_path = base_dir / "datasets" / f"{self.character_name}.csv"
+        if csv_path.exists() or self.character_has_model(self.character_name):
+            return None
+
         ''' Start Scrape Timer '''
         t0 = time.time()
-        urls = sc.discover_urls(self.character_name, max_urls=12)
+        urls = scraper.discover_urls(self.character_name, max_urls=12)
 
         ''' Parallel Scraping '''
-        quotes = sc.scrape_many(urls, character=self.character_name,
-                            max_workers=8,
-                            use_browser_fallback=False)
+        quotes = scraper.scrape_many(
+            urls,
+            character=self.character_name,
+            max_workers=8,
+            use_browser_fallback=False
+        )
 
         ''' Remove Duplicate Quotes '''
-        uniq = sc.dedupe(quotes)
+        uniq = scraper.dedupe(quotes)
 
         ''' Save Quote Dataset '''
         base_dir = Path(__file__).resolve().parent.parent
         file_path = base_dir / "datasets" / f"{self.character_name}.csv"
-        sc.save_csv(uniq, file_path)
+        scraper.save_csv(uniq, file_path)
 
         ''' Create Character Model in DB '''
         self.create_character_model(self.character_name, file_path)

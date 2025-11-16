@@ -40,6 +40,7 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 SERPAPI_KEY = env('SERPAPI_KEY')
+OPENAI_KEY = env('OPENAI_KEY')
 
 # Database
 DATABASES = {
@@ -62,6 +63,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'main',
     'scraper',
+    'training',
     'crispy_forms',
     'crispy_bootstrap5',
 ]
