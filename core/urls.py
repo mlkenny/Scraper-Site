@@ -19,6 +19,7 @@ from django.urls import path
 
 import main.views as main_views
 import scraper.views as scraper_views
+import training.views as training_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,5 +27,6 @@ urlpatterns = [
     path('about/', main_views.about, name='about'),
     path('contact/', main_views.contact, name='contact'),
 
-    path('train/', scraper_views.train_character, name='train_character'),
+    path('scrape/', scraper_views.scrape_character, name='scrape_character'),
+    path("train/", training_views.train_model, name="train_model"),
 ]

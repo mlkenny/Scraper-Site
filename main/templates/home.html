@@ -7,7 +7,7 @@
     <h1 class="text-center mb-4">🧭 Anime Character Quote Scraper</h1>
 
     <!-- Form -->
-    <form method="POST" action="{% url 'train_character' %}" class="card p-4 shadow-sm mx-auto mb-4" style="max-width: 500px;">
+    <form method="POST" action="{% url 'scrape_character' %}" class="card p-4 shadow-sm mx-auto mb-4" style="max-width: 500px;">
         {% csrf_token %}
         <div class="mb-3">
             <label for="character" class="form-label">Enter Character Name</label>

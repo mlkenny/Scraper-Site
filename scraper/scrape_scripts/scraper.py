@@ -9,8 +9,6 @@ Features:
 - Simple site-specific handlers where helpful; generic extractor otherwise
 - Outputs CSV: source_url, quote
 
-Usage:
-  py ./main/scripts/scraper.py --character "Monkey D. Luffy" --max-urls 12 --out luffy_quotes.csv
 """
 
 import re
@@ -161,7 +159,7 @@ def google_search_serpapi(query, max_results=DEFAULT_MAX_URLS, country="us", lan
 def build_query(character):
     # Bias toward quote pages; include exact or typographic quotes
     base = f'{character} quotes'
-    extras = ['One Piece', '"best quotes"', '"quotes"', 'site:ranker.com OR site:cbr.com OR site:epicquotes.com OR site:sportskeeda.com OR site:scatteredquotes.com OR site:animemotivation.com OR site:goodreads.com']
+    extras = ['"best quotes"', '"quotes"', 'site:ranker.com OR site:cbr.com OR site:epicquotes.com OR site:sportskeeda.com OR site:scatteredquotes.com OR site:animemotivation.com OR site:goodreads.com']
     return f"{base} " + " ".join(extras)
 
 # ---------------------------
@@ -316,7 +314,6 @@ def scrape_many(urls, character=None, max_workers=DEFAULT_WORKERS, use_browser_f
             u = futures[fut]
             try:
                 results = fut.result()
-                print(f"✔ scraped {len(results):3d} from {u}")
                 all_quotes.extend(results)
             except Exception as e:
                 print(f"✖ error {u}: {e}")
@@ -346,38 +343,3 @@ def save_csv(rows, path):
         w.writerow(["source_url", "quote"])
         for r in rows:
             w.writerow(r)
-
-def main():
-    ap = argparse.ArgumentParser(description="Dynamic parallel quote scraper with Google (SerpAPI) discovery.")
-    ap.add_argument("--character", required=True, help="Character name, e.g. 'Monkey D. Luffy'")
-    ap.add_argument("--max-urls", type=int, default=DEFAULT_MAX_URLS, help="Max discovered URLs to scrape")
-    ap.add_argument("--out", default="quotes.csv", help="Output CSV path")
-    ap.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Parallel workers")
-    ap.add_argument("--use-browser", action="store_true", help="Enable Selenium dynamic fallback for JS pages")
-    args = ap.parse_args()
-
-    print(f"🔎 discovering URLs for: {args.character!r}")
-    urls = discover_urls(args.character, max_urls=args.max_urls)
-    print(f"→ {len(urls)} URLs discovered")
-    for i, u in enumerate(urls, 1):
-        print(f"  {i:2d}. {u}")
-
-    print("\n⚙️ scraping in parallel ...")
-    t0 = time.time()
-    quotes = scrape_many(urls, character=args.character,
-                         max_workers=args.workers,
-                         use_browser_fallback=args.use_browser)
-    t1 = time.time()
-    print(f"\n⏱ scraping time: {t1 - t0:.2f}s  (pre-dedupe count: {len(quotes)})")
-
-    uniq = dedupe(quotes)
-    print(f"✅ unique quotes: {len(uniq)}")
-
-    save_csv(uniq, args.out)
-    print(f"💾 saved to {args.out}")
-
-    print("\n(Heads up) Respect each site’s Terms of Service and robots.txt before scraping. "
-          "Use --use-browser only when needed; it’s slower and heavier.")
-
-if __name__ == "__main__":
-    main()

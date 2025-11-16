@@ -1,0 +1,18 @@
+{% extends 'partials/base.html' %}
+
+{% block title %}Scraping{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+    <h2>Scraped quotes for {{ character }}!</h2>
+    <h3>Scraping Time: {{ scrape_time }}</h3>
+
+    <a href="{% url 'train_model' %}?character={{ character }}&time_taken={{ scrape_time }}" class="btn btn-primary mt-4">
+        🚀 Train Model
+    </a>
+
+    <a href="{% url 'home' %}" class="btn btn-secondary mt-4">
+        ⬅ Back to Character Selection
+    </a>
+</div>
+{% endblock %}
