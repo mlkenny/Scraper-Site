@@ -20,13 +20,17 @@ from django.urls import path
 import main.views as main_views
 import scraper.views as scraper_views
 import training.views as training_views
+import selection.views as selection_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
     path('', main_views.home, name='home'),
     path('about/', main_views.about, name='about'),
     path('contact/', main_views.contact, name='contact'),
 
     path('scrape/', scraper_views.scrape_character, name='scrape_character'),
     path("train/", training_views.train_model, name="train_model"),
+    path('character_select/', selection_views.character_select, name='character_select'),
+    path('delete-character/<str:name>/', selection_views.delete_character, name='delete_character'),
 ]

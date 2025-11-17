@@ -1,9 +1,56 @@
 {% extends 'partials/base.html' %}
 
-{% block title %}Model Page{% endblock %}
+{% block title %}Models{% endblock %}
 
 {% block content %}
 <div class="container text-center py-5">
     <h2>Model for {{ character }}!</h2>
+
+    <div class="d-flex align-items-center justify-content-center mb-3">
+        <!-- Character Image (left side) -->
+        <div class="me-3 d-flex align-items-center justify-content-center"
+            style="width: 90px; height: 90px; border-radius: 12px; overflow: hidden; background-color: #f5f5f5;">
+            {% if character.image_url %}
+                <img src="{{ character.image_url }}" alt="{{ character.name }}" class="img-fluid"
+                    style="width: 100%; height: 100%; object-fit: cover;">
+            {% else %}
+                <div class="text-muted small text-center">No<br>Image</div>
+            {% endif %}
+        </div>
+        <!-- Character Container -->
+        <div class="card shadow-sm me-3" style="max-width: 700px; width: 100%;">
+            <div class="card-body py-3 px-4">
+                <div class="row text-start align-items-center">
+                    <!-- Character Info Column -->
+                    <div class="col-md-6 border-end">
+                        <h4 class="fw-bold">{{ character.name }}</h4>
+                        <p><strong>Dataset Path:</strong> {{ character.dataset_path|default:"Not available" }}</p>
+                        <p><strong>Created At:</strong> {{ character.created_at|date:"F j, Y, g:i a" }}</p>
+                    </div>
+    
+                    <!-- Model Info Column -->
+                    <div class="col-md-6">
+                        {% if character.model %}
+                            <h5 class="fw-bold text-success">Model Information</h5>
+                            <p><strong>Model ID:</strong> {{ character.model.model_id }}</p>
+                            <p><strong>Status:</strong> {{ character.model.training_status }}</p>
+                            <p><strong>Trained On:</strong> {{ character.model.trained_on|date:"F j, Y, g:i a" }}</p>
+                            <p><strong>Notes:</strong> {{ character.model.notes|default:"No notes available" }}</p>
+                        {% else %}
+                            <h5 class="fw-bold text-muted">No Model Linked</h5>
+                            <p>This character has not been trained yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Character Selection Button -->
+    <div class="text-center">
+        <a href="{% url 'character_select' %}" class="btn btn-secondary mt-3">
+            🔍 Go to Character Selection for Current Models
+        </a>
+    </div>
 </div>
 {% endblock %}

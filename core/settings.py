@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'main',
     'scraper',
     'training',
+    'selection',
     'crispy_forms',
     'crispy_bootstrap5',
 ]
