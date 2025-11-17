@@ -21,8 +21,8 @@ class TrainerManager:
 
         trained_model  = self.create_trained_model(job)
 
-        self.character.model = trained_model
-        self.character.save()
+        trained_model.character = self.character
+        trained_model.save()
 
         return trained_model
     

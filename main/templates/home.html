@@ -14,7 +14,14 @@
             <input type="text" name="character" id="character" class="form-control" placeholder="e.g. Monkey D. Luffy"
                 required>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Train Character Model</button>
+        <button type="submit" class="btn btn-primary w-100">Train New Character Model</button>
     </form>
+
+    <!-- Character Selection Button -->
+    <div class="text-center">
+        <a href="{% url 'character_select' %}" class="btn btn-secondary mt-3">
+            🔍 Go to Character Selection for Current Models
+        </a>
+    </div>
 </div>
 {% endblock %}
