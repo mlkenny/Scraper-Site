@@ -10,10 +10,8 @@ tzdata==2025.2
 
 beautifulsoup4==4.12
 requests==2.32
-pandas==2.2
 
 openai==1.42.0
-
 selenium==4.24.0
 serpapi==0.1.5
 tqdm==4.66
