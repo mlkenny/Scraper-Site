@@ -7,7 +7,7 @@ from .models import TrainedModel
 @admin.register(TrainedModel)
 class TrainedModelAdmin(admin.ModelAdmin):
     list_display = ("model_id", "training_status", "trained_on", "linked_character")
-    readonly_fields = ("character", "model_id", "trained_on", "updated_at")
+    readonly_fields = ("character", "trained_on", "updated_at")
     search_fields = ("model_id", "character__name")
     list_filter = ("training_status",)
 

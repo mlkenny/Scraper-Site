@@ -11,6 +11,7 @@ Features:
 
 """
 
+from pathlib import Path
 import re
 import csv
 import time
@@ -71,54 +72,63 @@ def is_probably_js(url, html_text=None):
     return (html_text.count("<script") > 10 and len(html_text) < 80000)
 
 # ---------------------------
-# Optional Selenium (dynamic)
+# Selenium (dynamic)
 # ---------------------------
 
 _browser_lock = threading.Lock()  # to avoid spinning up too many browsers at once
 
-def fetch_dynamic_html(url, scroll_selector=None, max_wait_loops=6, pause=1.4):
+def fetch_dynamic_html(url, scroll_selector=None, max_wait_loops=3, pause=1.0):
     """
-    Use Selenium to render JS pages. Requires:
-      pip install selenium
-    and a Chrome/Chromium driver in PATH.
-
-    scroll_selector: CSS selector to follow while scrolling (e.g., quote container)
+    Faster text-only dynamic fetch with Selenium.
+    Keeps error output visible but disables heavy resources.
     """
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
+    import time
 
     opts = Options()
     opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--window-size=1920,1080")
+    opts.add_argument("--window-size=1600,900")
+    # 🚀 speed tweaks
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--blink-settings=imagesEnabled=false")   # no images
+    opts.add_argument("--disable-extensions")
+    opts.add_argument("--disable-notifications")
+    # block unnecessary content types
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,
+        "profile.managed_default_content_settings.stylesheets": 2,
+        "profile.managed_default_content_settings.plugins": 2,
+        "profile.managed_default_content_settings.popups": 2,
+        "profile.managed_default_content_settings.geolocation": 2,
+        "profile.managed_default_content_settings.notifications": 2,
+    }
+    opts.add_experimental_option("prefs", prefs)
 
     with _browser_lock:
         driver = webdriver.Chrome(options=opts)
 
     try:
+        start = time.time()
         driver.get(url)
-        time.sleep(3)
 
-        last_count, same = 0, 0
         selector = scroll_selector or "blockquote, q, p"
+        last_count, same = 0, 0
         while True:
             elems = driver.find_elements(By.CSS_SELECTOR, selector)
             if elems:
                 driver.execute_script("arguments[0].scrollIntoView({block:'end'});", elems[-1])
             else:
                 driver.execute_script("window.scrollBy(0, 1000);")
+
             time.sleep(pause)
-
             new_count = len(driver.find_elements(By.CSS_SELECTOR, selector))
-            if new_count == last_count:
-                same += 1
-            else:
-                same = 0
-                last_count = new_count
-
-            if same >= max_wait_loops:
+            same = same + 1 if new_count == last_count else 0
+            last_count = new_count
+            if same >= max_wait_loops or (time.time() - start) > 15:
                 break
 
         html_source = driver.page_source
@@ -176,22 +186,35 @@ QUOTE_LIKE = re.compile(r"[\"“”'«»‘’].{6,}")
 def generic_extract(html_text, base_url, character=None):
     """
     Generic quote extraction from blockquote, q, p, li.
-    Light heuristics to keep quote-like text, optionally bias by character name.
+    Stricter heuristics to keep only real character quotes and ignore site junk.
     """
     soup = BeautifulSoup(html_text, "html.parser")
     candidates = soup.select("blockquote, q, li, p")
     out = []
+
+    # Lowercase character name for matching
+    char_name = character.lower() if character else None
+
     for c in candidates:
         txt = clean_text(c.get_text(" ", strip=True))
         if len(txt) < 12:
             continue
-        # must look quote-ish (or be bullet items on quote pages)
-        if QUOTE_LIKE.search(txt) or (len(txt) > 25 and (txt.count(" ") > 3)):
-            # helpful: if character is provided, optionally de-prioritize unrelated lists
-            if character:
-                # accept even if name not present, but downweight later if needed
-                pass
+
+        # skip obvious junk text
+        junk_words = ["vote", "photo", "ranker", "comment", "episode", "great quote", "quotes list"]
+        if any(j in txt.lower() for j in junk_words):
+            continue
+
+        # must look quote-ish (starts with a quote mark or contains the character’s name)
+        looks_like_quote = QUOTE_LIKE.search(txt)
+        mentions_character = char_name and char_name in txt.lower()
+
+        if looks_like_quote or mentions_character:
+            # limit excessively long blocks of text
+            if len(txt) > 350:
+                continue
             out.append((base_url, txt))
+
     return out
 
 # --- Site-specific (improve precision where possible) ---
@@ -343,3 +366,71 @@ def save_csv(rows, path):
         w.writerow(["source_url", "quote"])
         for r in rows:
             w.writerow(r)
+
+# ---------------------------
+# OpenAI Moderation Checks on jsonl
+# ---------------------------
+
+from openai import OpenAI
+client = OpenAI(api_key=settings.OPENAI_KEY)
+def normalize_quote(text: str) -> str:
+    """Strip HTML, normalize spacing, and remove common junk."""
+    text = html.unescape(text)
+    text = re.sub(r"<.*?>", "", text)        # remove HTML tags
+    text = re.sub(r"\s+", " ", text).strip() # normalize whitespace
+    text = re.sub(r"\b\d+\s+votes?\b", "", text, flags=re.I)
+    text = re.sub(r"Photo:.*", "", text, flags=re.I)
+    text = re.sub(r"Great quote\??", "", text, flags=re.I)
+    return text.strip()
+
+def is_safe_quote(text: str) -> bool:
+    """Return True if the quote passes moderation."""
+    try:
+        result = client.moderations.create(
+            model="omni-moderation-latest",
+            input=text
+        )
+        return not result.results[0].flagged
+    except Exception as e:
+        print(f"⚠️ Moderation check failed: {e}")
+        return False
+    
+
+def clean_dataset(csv_path, character_name):
+    """
+    Clean a scraped CSV by removing unsafe, duplicate, or junk quotes.
+    Overwrites the original CSV file with a cleaned version.
+    """
+    csv_path = Path(csv_path)
+    temp_path = csv_path.with_name(f"{csv_path.stem}_temp.csv")
+
+    seen = set()
+    kept = removed = 0
+
+    with open(csv_path, encoding="utf-8", errors="ignore") as infile, \
+         open(temp_path, "w", newline="", encoding="utf-8") as outfile:
+
+        reader = csv.DictReader(infile)
+        writer = csv.DictWriter(outfile, fieldnames=["source_url", "quote"])
+        writer.writeheader()
+
+        for row in reader:
+            quote = normalize_quote(row.get("quote", ""))
+            if not quote or len(quote) < 10 or quote.lower() in seen:
+                continue
+
+            seen.add(quote.lower())
+
+            if is_safe_quote(quote):
+                writer.writerow({
+                    "source_url": row.get("source_url", ""),
+                    "quote": quote
+                })
+                kept += 1
+            else:
+                removed += 1
+
+    new_path = temp_path.replace(csv_path)
+    print(f"✅ Cleaned dataset for {character_name}: {csv_path}")
+    print(f"Kept: {kept} | Removed: {removed}")
+    return new_path

@@ -1,70 +1,110 @@
 {% extends 'partials/base.html' %}
-
 {% block title %}Character Selection{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-    <h1 class="text-center mb-5">🧠 Character Selection</h1>
+    <h1 class="text-center mb-5">💬 Chat Character Selection</h1>
 
-    {% if characters %}
-        {% for character in characters %}
-        <div class="d-flex align-items-center justify-content-center mb-3">
-            <!-- Character Image (left side) -->
-            <div class="me-3 d-flex align-items-center justify-content-center"
-                style="width: 90px; height: 90px; border-radius: 12px; overflow: hidden; background-color: #f5f5f5;">
-                {% if character.image_url %}
-                <img src="{{ character.image_url }}" alt="{{ character.name }}" class="img-fluid"
-                    style="width: 100%; height: 100%; object-fit: cover;">
-                {% else %}
-                <div class="text-muted small text-center">No<br>Image</div>
-                {% endif %}
-            </div>
-            <!-- Character Container -->
-            <div class="card shadow-sm me-3" style="max-width: 700px; width: 100%;">
-                <div class="card-body py-3 px-4">
-                    <div class="row text-start align-items-center">
-                        <!-- Character Info Column -->
-                        <div class="col-md-6 border-end">
-                            <h4 class="fw-bold">{{ character.name }}</h4>
-                            <p><strong>Dataset Path:</strong> {{ character.dataset_path|default:"Not available" }}</p>
-                            <p><strong>Created At:</strong> {{ character.created_at|date:"F j, Y, g:i a" }}</p>
-                        </div>
+    {% for character in characters %}
+    <div class="d-flex align-items-center justify-content-center mb-3">
 
-                        <!-- Model Info Column -->
-                        <div class="col-md-6">
-                            {% if character.model %}
-                                <h5 class="fw-bold text-success">Model Information</h5>
-                                <p><strong>Model ID:</strong> {{ character.model.model_id }}</p>
-                                <p><strong>Status:</strong> {{ character.model.training_status }}</p>
-                                <p><strong>Trained On:</strong> {{ character.model.trained_on|date:"F j, Y, g:i a" }}</p>
-                                <p><strong>Notes:</strong> {{ character.model.notes|default:"No notes available" }}</p>
-                            {% else %}
-                                <h5 class="fw-bold text-muted">No Model Linked</h5>
-                                <p>This character has not been trained yet.</p>
-                            {% endif %}
-                            <!-- Delete Button (bottom-right) -->
-                            <div class="d-flex justify-content-end mt-3">
-                                <a href="{% url 'delete_character' character.name %}" class="btn btn-sm btn-danger rounded-pill px-3 py-1"
-                                    onclick="return confirm('Are you sure you want to delete this character?');">
-                                    Delete
-                                </a>
-                            </div>
+        <!-- Character image -->
+        <div class="me-3 d-flex align-items-center justify-content-center"
+            style="width:90px;height:90px;border-radius:12px;overflow:hidden;background:#f5f5f5;">
+            {% if character.image_url %}
+            <img src="{{ character.image_url }}" alt="{{ character.name }}" class="img-fluid"
+                style="width:100%;height:100%;object-fit:cover;">
+            {% else %}
+            <div class="text-muted small text-center">No<br>Image</div>
+            {% endif %}
+        </div>
+
+        <!-- Character info -->
+        <div class="card shadow-sm me-3" style="max-width:700px;width:100%;">
+            <div class="card-body py-3 px-4">
+                <div class="row text-start align-items-center">
+
+                    <div class="col-md-6 border-end">
+                        <h4 class="fw-bold">{{ character.name }}</h4>
+                        <p><strong>Dataset Path:</strong> {{ character.dataset_path|default:"Not available" }}</p>
+                        <p><strong>Created At:</strong> {{ character.created_at|date:"F j, Y, g:i a" }}</p>
+                    </div>
+
+                    <div class="col-md-6">
+                        {% if character.model %}
+                        <h5 class="fw-bold text-success">Model Information</h5>
+                        <p><strong>Model ID:</strong> {{ character.model.model_id }}</p>
+                        <p><strong>Status:</strong> {{ character.model.training_status }}</p>
+                        <p><strong>Trained On:</strong> {{ character.model.trained_on|date:"F j, Y, g:i a" }}</p>
+                        <p><strong>Notes:</strong> {{ character.model.notes|default:"No notes available" }}</p>
+                        {% else %}
+                        <h5 class="fw-bold text-muted">No Model Linked</h5>
+                        <p>This character has not been trained yet.</p>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <a href="{% url 'delete_character' character.name %}"
+                                class="btn btn-sm btn-danger rounded-pill px-3 py-1"
+                                onclick="return confirm('Are you sure you want to delete this character?');">
+                                Delete
+                            </a>
                         </div>
                     </div>
+
                 </div>
             </div>
-            <!-- Big Square Select Button (outside card) -->
-            <a href="{% url 'train_model' %}?character={{ character.name|urlencode }}"
-                class="btn btn-primary d-flex align-items-center justify-content-center"
-                style="width: 90px; height: 90px; font-size: 1rem; border-radius: 12px;">
-                Select
-            </a>
         </div>
-        {% endfor %}
-    {% else %}
-        <div class="alert alert-info text-center">
-            No characters found in the database. Add one before returning to this page!
-        </div>
-    {% endif %}
+
+        <!-- Chat / Status Button -->
+        {% if character.model %}
+        {% with status=character.model.training_status|lower %}
+        {% if status == "succeeded" or status == "completed" %}
+        <!-- Chat button when succeeded -->
+        <a href="{% url 'start_chat' character.model.id %}"
+            class="btn btn-primary d-flex align-items-center justify-content-center"
+            style="width:90px;height:90px;font-size:1rem;border-radius:12px;">
+            Chat
+        </a>
+
+        {% elif status == "failed" %}
+        <!-- Failed status button -->
+        <button class="btn btn-danger d-flex align-items-center justify-content-center" disabled
+            style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.9;"
+            title="Fine-tuning failed for this model. Please retrain.">
+            ❌ Failed
+        </button>
+
+        {% elif status == "cancelled" or status == "canceled" %}
+        <!-- Canceled status button -->
+        <button class="btn btn-warning d-flex align-items-center justify-content-center" disabled
+            style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.9;"
+            title="Training was canceled before completion.">
+            ⚠️ Canceled
+        </button>
+
+        {% else %}
+        <!-- Training (default) -->
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center" disabled
+            style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.7;"
+            title="Model training in progress ({{ character.model.training_status|capfirst }}).">
+            ⏳ Training
+        </button>
+        {% endif %}
+        {% endwith %}
+        {% else %}
+        <!-- No model linked -->
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center" disabled
+            style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.7;"
+            title="No model linked for this character.">
+            No Model
+        </button>
+        {% endif %}
+
+    </div>
+    {% empty %}
+    <div class="alert alert-info text-center">
+        No characters found in the database. Add one before returning to this page!
+    </div>
+    {% endfor %}
 </div>
 {% endblock %}

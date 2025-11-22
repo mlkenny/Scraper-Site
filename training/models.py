@@ -10,11 +10,12 @@ class TrainedModel(models.Model):
         null=True,
         blank=True
     )
-    model_id = models.CharField(max_length=255, unique=True)
+    job_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    model_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     training_status = models.CharField(max_length=50, default='pending')
     trained_on = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.model_id}"
+        return f"{self.character.name if self.character else 'Unknown'} ({self.training_status})"

@@ -16,7 +16,7 @@ class TrainerManager:
         ).first()
         if existing_character:
             return None
-
+        
         job = trainer.train(csv_path, character_name)
 
         trained_model  = self.create_trained_model(job)
@@ -29,7 +29,7 @@ class TrainerManager:
     def create_trained_model(self, job):
         # Create the TrainedModel Object
         trained_model, created = TrainedModel.objects.get_or_create(
-            model_id=job.id,
+            job_id=job.id,
             defaults={
                 "training_status": job.status,
                 "notes": f"{job.model} trained on {self.character.name} quotes."

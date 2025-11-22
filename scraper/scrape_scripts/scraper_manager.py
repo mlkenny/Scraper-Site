@@ -13,12 +13,13 @@ class ScraperManager:
         self.character_name = character_name.strip()
 
     def create_character_model(self, character_name, file_path):
+        csv_path = scraper.clean_dataset(file_path, character_name)
         image_url = self.find_character_image(character_name)
         # Create the Character Object
         Character.objects.get_or_create(
             name=character_name,
             defaults={
-                "dataset_path": str(file_path),
+                "dataset_path": str(csv_path),
                 "image_url": image_url
             }
         )
