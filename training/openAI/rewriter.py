@@ -15,12 +15,16 @@ def rewrite_dataset(input_path: str, output_path: str = None) -> Path:
     if output_path is None:
         output_path = input_path.with_name(f"{input_path.stem}_rewritten.jsonl")
 
+    if Path(output_path).exists():
+        print(f"🛑 Rewritten dataset already exists → {output_path}, rewriting skipped")
+        return Path(output_path)
+
     system_prompt = (
         "You rewrite scraped quote data into natural chat form. "
         "Keep the character's tone and remove all article or narration text. "
         "Make each assistant reply sound like real dialogue."
     )
-
+    print(f"\n⏳ Starting rewriting process")
     with open(input_path, "r", encoding="utf-8") as infile, \
          open(output_path, "w", encoding="utf-8") as outfile:
         for i, line in enumerate(infile, 1):
@@ -48,6 +52,7 @@ def rewrite_dataset(input_path: str, output_path: str = None) -> Path:
                     ]
                 }
                 outfile.write(json.dumps(new_entry, ensure_ascii=False) + "\n")
+                print(f"✅ Rewrote line {i}")
             except Exception as e:
                 print(f"⚠️ Skipped line {i} ({e})")
 

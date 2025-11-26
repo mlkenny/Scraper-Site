@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 
 class ChatSession(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="chat_sessions", null=True)
-    model = models.ForeignKey(TrainedModel, on_delete=models.CASCADE)
+    model = models.ForeignKey(TrainedModel, on_delete=models.CASCADE, null=True, blank=True)
     session_key = models.CharField(max_length=100, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -103,6 +103,7 @@ def train(csv_path: str, character_name: str):
     jsonl_path = rewriter.rewrite_dataset(jsonl_path)
 
     ''' MODERATION CHECK '''
+    print(f"\n⏳ Performing OpenAI moderation check")
     safe_jsonl = Path(jsonl_path).with_name(f"{Path(jsonl_path).stem}_safe.jsonl")
 
     with open(jsonl_path, "r", encoding="utf-8") as infile, \
@@ -127,7 +128,10 @@ def train(csv_path: str, character_name: str):
     job = client.fine_tuning.jobs.create(
         training_file=file_obj.id,
         model="gpt-3.5-turbo",
-        suffix=character_name.lower().replace(" ", "_")
+        suffix=character_name.lower().replace(" ", "_"),
+        metadata={
+            "character" : character_name
+        }
     )
 
     trained_model = TrainedModel.objects.filter(character__name=character_name).first()

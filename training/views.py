@@ -37,41 +37,66 @@ def openai_webhook(request):
 
     try:
         payload = json.loads(request.body.decode("utf-8"))
-        event_type = payload.get("type")
+        event_type = payload.get("type", "")
         data = payload.get("data", {})
-        job_id = data.get("id")
-        status = data.get("status") or event_type.split(".")[-1]
-        model_name = data.get("fine_tuned_model")
 
-        print(f"📩 Webhook event={event_type} job_id={job_id} status={status}")
+        # 🔍 Only handle fine-tune job events
+        if not event_type.startswith("fine_tuning.job"):
+            print(f"🔕 Ignored non fine-tuning event: {event_type}")
+            return JsonResponse({"ignored": True})
 
-        print(f"🔎 Incoming job_id from webhook: {job_id!r}")
-        print(f"📦 Existing job_ids in DB:", list(TrainedModel.objects.values_list("job_id", flat=True)))
+        # 🔍 Fine-tune events always wrap the job in data.object
+        obj = data.get("object", {})
+
+        job_id = obj.get("id")
+        status = obj.get("status")
+        model_name = obj.get("fine_tuned_model")
+        metadata = obj.get("metadata", {})
+        character_name = metadata.get("character") or metadata.get("character_name")
+
+        print("\n===== FINE-TUNE WEBHOOK =====")
+        print("Event Type:", event_type)
+        print("Job ID:", job_id)
+        print("Status:", status)
+        print("Model Returned:", model_name)
+        print("Metadata:", metadata)
+        print("==============================\n")
+
+        # 🔍 Validate job_id
+        if not job_id:
+            print("❌ Webhook missing job_id (data.object.id)")
+            return JsonResponse({"error": "Missing job_id"}, status=400)
+
+        # 🔍 Find TrainedModel by job_id
         trained = TrainedModel.objects.filter(job_id=job_id).select_related("character").first()
+
         if not trained:
             print(f"⚠️ No TrainedModel found for job_id={job_id}")
             return JsonResponse({"warning": "No TrainedModel found"}, status=404)
 
+        # Update training status always
         trained.training_status = status
 
+        # Handle success state
         if status == "succeeded" and model_name:
             trained.model_id = model_name
             print(f"🎉 Fine-tuned model linked: {model_name}")
 
-            if trained.character:
-                trained.character.model = trained
-                trained.character.save(update_fields=["model"])
-                print(f"🔗 Linked character {trained.character.name} to model {model_name}")
+            # Link chat sessions that were waiting
+            sessions = ChatSession.objects.filter(
+                model__isnull=True,
+                character=trained.character
+            )
 
-            sessions = ChatSession.objects.filter(model__isnull=True, character=trained.character)
             for session in sessions:
-                session.model = model_name
+                session.model = trained  # assign FK properly
                 session.save(update_fields=["model"])
-                print(f"💬 Linked chat session {session.id} to model {model_name}")
+                print(f"💬 Session {session.id} linked to trained model")
 
+        # Save trained model
         trained.save(update_fields=["training_status", "model_id"])
-        print(f"✅ Updated TrainedModel {trained.id}: {status}")
 
+        print(f"✅ Trained model saved for character={character_name} job_id={job_id}")
         return JsonResponse({"success": True})
 
     except Exception as e:

@@ -15,14 +15,20 @@ class TrainerManager:
             model__isnull=False
         ).first()
         if existing_character:
+            print(f"🛑 Character Has Existing Model, Only One Model Per Character")
             return None
         
+        print(f"⏳ Tuning GPT model on conversational dataset")
         job = trainer.train(csv_path, character_name)
 
+        print(f"⏳ Saving trained model to DB")
         trained_model  = self.create_trained_model(job)
 
+        print(f"⏳ Linking trained model to character")
         trained_model.character = self.character
         trained_model.save()
+
+        print(f"✅ Trained model job begun for: {self.character}")
 
         return trained_model
     
