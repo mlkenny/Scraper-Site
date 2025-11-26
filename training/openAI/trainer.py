@@ -95,16 +95,9 @@ def csv_to_jsonl(csv_path: str, character_name: str) -> Path:
     print(f"✅ Generated conversational JSONL for {character_name}: {jsonl_path}")
     return jsonl_path
 
-def train(csv_path: str, character_name: str):
-    """
-    Fine-tune gpt-3.5-turbo using data from a CSV file.
-    """
-    jsonl_path = csv_to_jsonl(csv_path, character_name)
-    jsonl_path = rewriter.rewrite_dataset(jsonl_path)
-
+def moderation_check(jsonl_path: str, safe_jsonl: str):
     ''' MODERATION CHECK '''
     print(f"\n⏳ Performing OpenAI moderation check")
-    safe_jsonl = Path(jsonl_path).with_name(f"{Path(jsonl_path).stem}_safe.jsonl")
 
     with open(jsonl_path, "r", encoding="utf-8") as infile, \
          open(safe_jsonl, "w", encoding="utf-8") as outfile:
@@ -122,9 +115,26 @@ def train(csv_path: str, character_name: str):
                 print(f"⚠️ Line {i} removed due to moderation flag:")
                 print("   sexual:", cats.sexual, " sexual_minors:", cats.sexual_minors,
                     " violence:", cats.violence, "\n")
+    # Create fine tuning job file.
+    with open(safe_jsonl, "rb") as f:
+        return client.files.create(file=f, purpose="fine-tune")
 
-    file_obj = client.files.create(file=open(safe_jsonl, "rb"), purpose="fine-tune")
+def train(csv_path: str, character_name: str):
+    """
+    Fine-tune gpt-3.5-turbo using data from a CSV file.
+    """
+    # Check if safe_jsonl path exists, indicates model has dataset that has been checked.
+    jsonl_path = Path(tempfile.gettempdir()) / f"{character_name.lower().replace(' ', '_')}_auto.jsonl"
+    safe_jsonl = jsonl_path.with_name(f"{jsonl_path.stem}_safe.jsonl")
+    if safe_jsonl.exists():
+        print("🛑 Character already has moderated dataset")
+        file_obj = client.files.create(file=open(safe_jsonl, "rb"), purpose="fine-tune")
+    else:
+        jsonl_path = csv_to_jsonl(csv_path, character_name)
+        rewritten_jsonl = rewriter.rewrite_dataset(jsonl_path)
+        file_obj = moderation_check(jsonl_path=rewritten_jsonl, safe_jsonl=safe_jsonl)
 
+    # Start job.
     job = client.fine_tuning.jobs.create(
         training_file=file_obj.id,
         model="gpt-3.5-turbo",
@@ -134,7 +144,7 @@ def train(csv_path: str, character_name: str):
         }
     )
 
-    trained_model = TrainedModel.objects.filter(character__name=character_name).first()
+    trained_model = TrainedModel.objects.filter(character__name__iexact=character_name).first()
     if trained_model:
         trained_model.job_id = job.id
         trained_model.training_status = job.status

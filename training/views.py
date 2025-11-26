@@ -1,7 +1,9 @@
 import json
+from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
+from openai import InvalidWebhookSignatureError, OpenAI
 
 from scraper.models import Character
 from chat.models import ChatSession
@@ -30,75 +32,84 @@ def train_model(request):
         print(f"No character found with the name: {character_name}")
         return redirect("scrape_character")
 
+client = OpenAI(api_key=settings.OPENAI_KEY)
+
 @csrf_exempt
 def openai_webhook(request):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid method"}, status=405)
 
     try:
-        payload = json.loads(request.body.decode("utf-8"))
-        event_type = payload.get("type", "")
-        data = payload.get("data", {})
+        # 1. Unwrap & verify signature
+        event = client.webhooks.unwrap(request.body, request.headers)
 
-        # 🔍 Only handle fine-tune job events
-        if not event_type.startswith("fine_tuning.job"):
-            print(f"🔕 Ignored non fine-tuning event: {event_type}")
+        print("\n===== RAW UNWRAPPED EVENT =====")
+        print(event)  # prints structured object
+        print("================================\n")
+
+        # Ignore non fine-tune events
+        if not event.type.startswith("fine_tuning.job"):
+            print(f"🔕 Ignored non fine-tuning event: {event.type}")
             return JsonResponse({"ignored": True})
 
-        # 🔍 Fine-tune events always wrap the job in data.object
-        obj = data.get("object", {})
+        # 2. Event.data is a Data object, not a dict
+        job_id = event.data.id
+        print(f"Fine-tune job ID extracted: {job_id}")
 
-        job_id = obj.get("id")
-        status = obj.get("status")
-        model_name = obj.get("fine_tuned_model")
-        metadata = obj.get("metadata", {})
-        character_name = metadata.get("character") or metadata.get("character_name")
+        # 3. Fetch full job details from API
+        job = client.fine_tuning.jobs.retrieve(job_id)
 
-        print("\n===== FINE-TUNE WEBHOOK =====")
-        print("Event Type:", event_type)
-        print("Job ID:", job_id)
+        print("\n===== FULL FINE-TUNE JOB OBJECT =====")
+        print(job)
+        print("=====================================\n")
+
+        status = job.status
+        model_name = job.fine_tuned_model
+        metadata = job.metadata or {}
+
+        character_name = (
+            metadata.get("character") or
+            metadata.get("character_name")
+        )
+
         print("Status:", status)
-        print("Model Returned:", model_name)
+        print("Model Name:", model_name)
         print("Metadata:", metadata)
-        print("==============================\n")
+        print("Character Name:", character_name)
 
-        # 🔍 Validate job_id
-        if not job_id:
-            print("❌ Webhook missing job_id (data.object.id)")
-            return JsonResponse({"error": "Missing job_id"}, status=400)
-
-        # 🔍 Find TrainedModel by job_id
+        # 4. Find the TrainedModel from DB
         trained = TrainedModel.objects.filter(job_id=job_id).select_related("character").first()
-
         if not trained:
             print(f"⚠️ No TrainedModel found for job_id={job_id}")
-            return JsonResponse({"warning": "No TrainedModel found"}, status=404)
+            return JsonResponse({"warning": "Not found"}, status=404)
 
-        # Update training status always
         trained.training_status = status
 
-        # Handle success state
+        # 5. Update model_id on success
         if status == "succeeded" and model_name:
             trained.model_id = model_name
-            print(f"🎉 Fine-tuned model linked: {model_name}")
+            print(f"🎉 Linked model_id: {model_name}")
 
             # Link chat sessions that were waiting
             sessions = ChatSession.objects.filter(
                 model__isnull=True,
                 character=trained.character
             )
-
             for session in sessions:
-                session.model = trained  # assign FK properly
+                session.model = trained
                 session.save(update_fields=["model"])
-                print(f"💬 Session {session.id} linked to trained model")
+                print(f"💬 Linked ChatSession {session.id}")
 
-        # Save trained model
         trained.save(update_fields=["training_status", "model_id"])
 
-        print(f"✅ Trained model saved for character={character_name} job_id={job_id}")
+        print(f"✅ Updated TrainedModel for {character_name} ({job_id})")
+
         return JsonResponse({"success": True})
+
+    except InvalidWebhookSignatureError:
+        print("❌ Invalid webhook signature")
+        return JsonResponse({"error": "Invalid signature"}, status=400)
 
     except Exception as e:
         print("❌ Webhook error:", e)
-        return JsonResponse({"error": str(e)}, status=400)
+        return JsonResponse({"error": str(e)}, status=500)

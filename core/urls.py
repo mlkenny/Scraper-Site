@@ -34,6 +34,7 @@ urlpatterns = [
     path("train/", training_views.train_model, name="train_model"),
     path('character_select/', selection_views.character_select, name='character_select'),
     path('delete-character/<str:name>/', selection_views.delete_character, name='delete_character'),
+    path("characters/edit-notes/<int:model_id>/", selection_views.edit_notes, name="edit_notes"),
 
     path('<int:model_id>/start/', chat_views.start_chat, name='start_chat'),
     path('session/<int:session_id>/', chat_views.chat_window, name='chat_window'),
