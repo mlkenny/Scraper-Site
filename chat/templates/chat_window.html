@@ -1,0 +1,57 @@
+{% extends 'partials/base.html' %}
+{% block content %}
+<h2>Chat with {{ session.model.character.name }}</h2>
+
+<a href="{% url 'character_select' %}" class="btn btn-secondary mb-3">← Back to Characters</a>
+
+<div id="chat-box" class="border rounded p-3 mb-3" style="height:400px;overflow-y:auto;background-color:#f8f9fa;">
+    {% for message in messages %}
+    <div class="mb-2 {% if message.sender == 'user' %}text-end{% endif %}">
+        <strong>{{ message.sender|title }}:</strong> {{ message.text }}
+    </div>
+    {% endfor %}
+</div>
+
+<form id="chat-form" method="POST" class="mb-2">
+    {% csrf_token %}
+    <div class="input-group">
+        <input type="text" name="message" id="message" class="form-control me-2" autocomplete="off" placeholder="Type your message..."
+            required>
+        <button class="btn btn-primary" type="submit">Send</button>
+    </div>
+</form>
+
+<button id="clear-chat" class="btn btn-outline-danger">Clear Chat</button>
+
+<script>
+    const form = document.getElementById('chat-form');
+    const chatBox = document.getElementById('chat-box');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('message').value;
+        const res = await fetch("{% url 'send_message' session.id %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            body: new URLSearchParams({ 'message': msg })
+        });
+        const data = await res.json();
+        chatBox.innerHTML += `<div class="text-end mb-2"><strong>You:</strong> ${msg}</div>`;
+        chatBox.innerHTML += `<div class="mb-2"><strong>{{ session.model.character.name }}:</strong> ${data.reply}</div>`;
+        document.getElementById('message').value = '';
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    document.getElementById('clear-chat').addEventListener('click', async () => {
+        if (!confirm('Clear all chat messages?')) return;
+        const res = await fetch("{% url 'clear_chat' session.id %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        });
+        const data = await res.json();
+        if (data.success) {
+            chatBox.innerHTML = '';
+        }
+    });
+</script>
+{% endblock %}

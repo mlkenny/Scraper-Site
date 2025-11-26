@@ -41,6 +41,7 @@ DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 SERPAPI_KEY = env('SERPAPI_KEY')
 OPENAI_KEY = env('OPENAI_KEY')
+OPENAI_WEBHOOK_SECRET = env('OPENAI_WEBHOOK_SECRET')
 
 # Database
 DATABASES = {
@@ -48,9 +49,8 @@ DATABASES = {
 }
 
 # Timezone
-TIME_ZONE = env('TIME_ZONE')
+TIME_ZONE = env('TIME_ZONE', default='UTC')
 USE_TZ = True
-
 
 # Application definition
 
@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'scraper',
     'training',
     'selection',
+    'chat',
     'crispy_forms',
     'crispy_bootstrap5',
 ]
@@ -103,7 +104,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
-
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -145,7 +145,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/

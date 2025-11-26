@@ -13,12 +13,13 @@ class ScraperManager:
         self.character_name = character_name.strip()
 
     def create_character_model(self, character_name, file_path):
+        csv_path = scraper.clean_dataset(file_path, character_name)
         image_url = self.find_character_image(character_name)
         # Create the Character Object
         Character.objects.get_or_create(
             name=character_name,
             defaults={
-                "dataset_path": str(file_path),
+                "dataset_path": str(csv_path),
                 "image_url": image_url
             }
         )
@@ -54,18 +55,25 @@ class ScraperManager:
     def scrape(self):
         ''' Check if Character has Model or not to Avoid Double Scraping '''
         if self.character_has_model(self.character_name):
+            print(f"🛑 Character Has Existing Model")
             return None
         
         ''' Check If Dataset Exists to Avoid Double Scraping '''
         base_dir = Path(__file__).resolve().parent.parent
         csv_path = base_dir / "datasets" / f"{self.character_name}.csv"
         if csv_path.exists() and not self.character_has_model(self.character_name):
+            print(f"🛑 Character Has Existing CSV File")
             self.create_character_model(self.character_name, csv_path)
             return 0
-
+        
+        print(f"\n⏳ Starting dynamic google scrape for: {self.character_name}")
+        
         ''' Start Scrape Timer '''
         t0 = time.time()
+
         urls = scraper.discover_urls(self.character_name, max_urls=12)
+
+        print(f"\n⏳ Parallel scraping {urls}")
 
         ''' Parallel Scraping '''
         quotes = scraper.scrape_many(
@@ -75,19 +83,25 @@ class ScraperManager:
             use_browser_fallback=False
         )
 
+        print(f"\n⏳ Removing duplicate quotes")
+
         ''' Remove Duplicate Quotes '''
         uniq = scraper.dedupe(quotes)
 
         ''' Save Quote Dataset '''
         base_dir = Path(__file__).resolve().parent.parent
         file_path = base_dir / "datasets" / f"{self.character_name}.csv"
+        print(f"\n⏳ Saving quotes to: {file_path}")
         scraper.save_csv(uniq, file_path)
 
         ''' Create Character Model in DB '''
+        print(f"\n⏳ Creating character model in DB")
         self.create_character_model(self.character_name, file_path)
 
         ''' Stop Scrape Timer '''
         t1 = time.time()
         scrape_time = t1 - t0
+
+        print(f"✅ Dynamic scrape completed for: {self.character_name} in {scrape_time}ms")
 
         return scrape_time
