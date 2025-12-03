@@ -45,7 +45,10 @@ def train_model(request):
         print(f"No character found with the name: {character_name}")
         return redirect("character_select")
 
-client = OpenAI(api_key=settings.OPENAI_KEY)
+client = OpenAI(
+    api_key=settings.OPENAI_KEY,
+    webhook_secret=settings.OPENAI_WEBHOOK_SECRET,
+)
 
 @csrf_exempt
 def openai_webhook(request):
