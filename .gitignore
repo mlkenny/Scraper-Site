@@ -1,5 +1,6 @@
 # Custom
 scraper/datasets/
+training/datasets/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

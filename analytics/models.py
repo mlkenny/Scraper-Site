@@ -22,11 +22,20 @@ class ScrapedQuote(models.Model):
         ordering = ["-timestamp"]
 
 class TrainingMetrics(models.Model):
-    trained_model = models.OneToOneField("training.TrainedModel", on_delete=models.CASCADE, related_name="metrics")
+    trained_model = models.OneToOneField(
+        "training.TrainedModel",
+        on_delete=models.CASCADE,
+        related_name="metrics"
+    )
+
     total_quotes_used = models.IntegerField(default=0)
+    quotes_removed = models.IntegerField(default=0)
     dataset_size_kb = models.FloatField(default=0.0)
+    rewritten_preview = models.JSONField(default=list, blank=True)
+
     fine_tune_start = models.DateTimeField(null=True, blank=True)
     fine_tune_end = models.DateTimeField(null=True, blank=True)
     duration_minutes = models.FloatField(default=0.0)
+
     job_status = models.CharField(max_length=50, default="pending")
     final_model_name = models.CharField(max_length=255, null=True, blank=True)

@@ -1,4 +1,5 @@
 import json
+from django.utils import timezone
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -15,22 +16,34 @@ from training.openAI.trainer_manager import TrainerManager
 
 def train_model(request):
     character_name = request.GET.get("character")
+
     try:
         character = Character.objects.get(name=character_name)
 
-        if hasattr(character, "model"):
+        rewritten_quotes = []  # Always define a default
+
+        # Case 1: Character already has a model (no new training)
+        if hasattr(character, "model") and character.model:
             model = character.model
+
+            # OPTIONAL: If you saved preview in metrics, load it
+            if hasattr(model, "metrics") and hasattr(model.metrics, "rewritten_preview"):
+                rewritten_quotes = model.metrics.rewritten_preview
+
+        # Case 2: No model → run training
         else:
             manager = TrainerManager(character)
-            model = manager.train_model()
+            model, rewritten_quotes = manager.train_model()
 
+        # Render page with safe rewritten_quotes
         return render(request, "model.html", {
             "character": character,
+            "rewritten_quotes": rewritten_quotes,
         })
 
     except Character.DoesNotExist:
         print(f"No character found with the name: {character_name}")
-        return redirect("scrape_character")
+        return redirect("character_select")
 
 client = OpenAI(api_key=settings.OPENAI_KEY)
 
@@ -85,8 +98,22 @@ def openai_webhook(request):
 
         trained.training_status = status
 
+        # Save to training metrics
+        metrics = trained.metrics
+        metrics.job_status = status
+
+        if status == "succeeded":
+            metrics.final_model_name = model_name
+
+        metrics.fine_tune_end = timezone.now()
+        metrics.duration_minutes = (
+            (metrics.fine_tune_end - metrics.fine_tune_start).total_seconds() / 60
+        )
+
+        metrics.save()
+
         # 5. Update model_id on success
-        if status == "succeeded" and model_name:
+        if status == "succeeded":
             trained.model_id = model_name
             print(f"🎉 Linked model_id: {model_name}")
 

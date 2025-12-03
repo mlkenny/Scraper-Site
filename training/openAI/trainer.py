@@ -12,6 +12,10 @@ from training.models import TrainedModel
 
 from . import rewriter
 
+APP_DIR = Path(__file__).resolve().parent.parent
+DATASET_DIR = APP_DIR / "datasets"
+DATASET_DIR.mkdir(exist_ok=True)
+
 # Initialize client (reads key from OPENAI_API_KEY env variable)
 client = OpenAI(api_key=settings.OPENAI_KEY)
 
@@ -123,24 +127,78 @@ def train(csv_path: str, character_name: str):
     """
     Fine-tune gpt-3.5-turbo using data from a CSV file.
     """
-    # Check if safe_jsonl path exists, indicates model has dataset that has been checked.
-    jsonl_path = Path(tempfile.gettempdir()) / f"{character_name.lower().replace(' ', '_')}_auto.jsonl"
-    safe_jsonl = jsonl_path.with_name(f"{jsonl_path.stem}_safe.jsonl")
+    base_name = character_name.lower().replace(" ", "_")
+
+    jsonl_path = DATASET_DIR / f"{base_name}_auto.jsonl"
+    safe_jsonl = DATASET_DIR / f"{base_name}_auto_safe.jsonl"
+
+    # ---- ALWAYS initialize metrics ----
+    safe_count = 0
+    rewritten_count = 0
+    removed_count = 0
+    dataset_size_kb = 0
+    rewritten_preview = []
+
+    # ---- CASE 1: Already has a safe dataset ----
     if safe_jsonl.exists():
-        print("🛑 Character already has moderated dataset")
+        print(f"🛑 Character already has moderated dataset")
+        print(f"🛑 Moderated dataset exists at {safe_jsonl}\n")
+
+        # Count safe lines
+        with open(safe_jsonl, "r", encoding="utf-8") as f:
+            safe_lines = [line for line in f if line.strip()]
+        safe_count = len(safe_lines)
+
+        # In this case, rewritten_count == safe_count (we don't have the raw rewritten file)
+        rewritten_count = safe_count
+        removed_count = 0
+
+        # Get size of safe jsonl
+        dataset_size_kb = round(safe_jsonl.stat().st_size / 1024, 2)
+
+        # Upload file
         file_obj = client.files.create(file=open(safe_jsonl, "rb"), purpose="fine-tune")
+
     else:
+        # ---- CASE 2: Need to build + moderate dataset ----
         jsonl_path = csv_to_jsonl(csv_path, character_name)
+
         rewritten_jsonl = rewriter.rewrite_dataset(jsonl_path)
+        
+
+        # Count rewritten lines BEFORE moderation
+        with open(rewritten_jsonl, "r", encoding="utf-8") as f:
+            rewritten_lines = [line for line in f if line.strip()]
+        rewritten_count = len(rewritten_lines)
+
+        # Moderate → produce safe_jsonl
         file_obj = moderation_check(jsonl_path=rewritten_jsonl, safe_jsonl=safe_jsonl)
 
-    # Start job.
+        # Collect rewritten quotes for preview
+
+        with open(safe_jsonl, "r", encoding="utf-8") as f:
+            for line in f:
+                data = json.loads(line)
+                # Extract assistant reply (the rewritten quote)
+                assistant_msg = next(m["content"] for m in data["messages"] if m["role"] == "assistant")
+                rewritten_preview.append(assistant_msg)
+
+        # Count safe lines AFTER moderation
+        with open(safe_jsonl, "r", encoding="utf-8") as f:
+            safe_lines = [line for line in f if line.strip()]
+        safe_count = len(safe_lines)
+
+        removed_count = rewritten_count - safe_count
+        dataset_size_kb = round(Path(safe_jsonl).stat().st_size / 1024, 2)
+
+    # ---- Same for both branches below ----
+
     job = client.fine_tuning.jobs.create(
         training_file=file_obj.id,
         model="gpt-3.5-turbo",
         suffix=character_name.lower().replace(" ", "_"),
         metadata={
-            "character" : character_name
+            "character": character_name
         }
     )
 
@@ -150,4 +208,10 @@ def train(csv_path: str, character_name: str):
         trained_model.training_status = job.status
         trained_model.save(update_fields=["job_id", "training_status"])
 
-    return job
+    return {
+        "job": job,
+        "total_quotes_used": safe_count,
+        "quotes_removed": removed_count,
+        "dataset_size_kb": dataset_size_kb,
+        "rewritten_preview": rewritten_preview[:200],
+    }

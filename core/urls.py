@@ -40,7 +40,6 @@ urlpatterns = [
     path("scrape/results/<str:character_name>/", analytics_views.scrape_results, name="scrape_results"),
     path("train/results/<int:model_id>/", analytics_views.train_results, name="train_results"),
 
-
     path('<int:model_id>/start/', chat_views.start_chat, name='start_chat'),
     path('session/<int:session_id>/', chat_views.chat_window, name='chat_window'),
     path('session/<int:session_id>/send/', chat_views.send_message, name='send_message'),

@@ -12,16 +12,15 @@ def scrape_character(request):
         manager = ScraperManager(character_name=character_name)
         scrape_time = manager.scrape()
 
-        # Fetch character instance AFTER scraping created it
-        character = Character.objects.select_related("scrape_metrics").get(name__iexact=character_name)
+        character = Character.objects.get(name__iexact=character_name)
+        
         quotes = character.scraped_quotes.all()
+
+        metrics = getattr(character, "scrape_metrics", None)
 
         return render(request, "scrape_results.html", {
             "character": character,
-            "scrape_time": scrape_time,
             "quotes": quotes,
-            "metrics": character.scrape_metrics,
+            "metrics": metrics,
+            "scrape_time": scrape_time,
         })
-    
-    # GET request fallback
-    return render(request, "scrape_results.html")

@@ -8,7 +8,7 @@
     <!-- Header -->
     <div class="text-center mb-4">
         <h2>Scraped Quotes for <strong>{{ character.name }}</strong></h2>
-        <h5 class="text-muted">Scraping Time: {{ scrape_time }} seconds</h5>
+        <h5 class="text-muted">Scraping Time: {{ metrics.scrape_duration }} seconds</h5>
     </div>
 
 
@@ -48,16 +48,16 @@
                     <td>{{ metrics.total_urls_discovered }}</td>
                 </tr>
                 <tr>
+                    <th>Unique Quotes</th>
+                    <td>{{ metrics.unique_quotes }}</td>
+                </tr>
+                <tr>
                     <th>Safe Quotes Extracted</th>
                     <td>{{ metrics.safe_quotes_extracted }}</td>
                 </tr>
                 <tr>
                     <th>Unsafe Quotes Extracted</th>
                     <td>{{ metrics.unsafe_quotes_extracted }}</td>
-                </tr>
-                <tr>
-                    <th>Unique Quotes</th>
-                    <td>{{ metrics.unique_quotes }}</td>
                 </tr>
                 <tr>
                     <th>Scrape Duration (seconds)</th>

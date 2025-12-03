@@ -23,7 +23,10 @@ class ScraperManager:
             }
         )
 
-        print(f"\n⏳ Cleaning dataset with openai moderation check")
+        # Count before moderation
+        with open(file_path, "r", encoding="utf-8") as f:
+            num_of_lines = len([line for line in f if line.strip()])
+        print(f"\n⏳ Cleaning dataset with openai moderation check for {num_of_lines} lines")
         # 2. Clean dataset (now character exists)
         csv_path, kept, removed = scraper.clean_dataset(file_path, character)
         
@@ -84,7 +87,7 @@ class ScraperManager:
 
         urls = scraper.discover_urls(self.character_name, max_urls=12)
 
-        print(f"\n⏳ Parallel scraping {urls}")
+        print(f"\n⏳ Parallel scraping {min(len(urls), 12)} urls")
 
         ''' Parallel Scraping '''
         quotes = scraper.scrape_many(

@@ -42,19 +42,41 @@
                         <p>This character has not been trained yet.</p>
                         {% endif %}
 
-                        <div class="d-flex justify-content-end mt-3">
-                            <a href="{% url 'delete_character' character.name %}"
-                                class="btn btn-sm btn-danger rounded-pill px-3 py-1"
+                        <div class="d-flex justify-content mt-3">
+                        
+                            <!-- DELETE -->
+                            <a href="{% url 'delete_character' character.name %}" class="btn btn-sm btn-danger rounded-pill px-3 py-1"
                                 onclick="return confirm('Are you sure you want to delete this character?');">
                                 Delete
                             </a>
+                            
+                            {% if character.dataset_path %}
+                            
+                            <!-- NEW: SCRAPE RESULTS BUTTON -->
+                            <a href="{% url 'scrape_results' character.name %}"
+                                class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 ms-2">
+                                Scrape
+                            </a>
+                            {% endif %}
+
                             {% if character.model %}
+
+                            <!-- EDIT NOTES -->
                             <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 ms-2" data-bs-toggle="modal"
                                 data-bs-target="#editNotesModal{{ character.model.id }}">
-                                Edit Notes
+                                Notes
                             </button>
+                        
+                            {% if character.model.id %}
+                                <a href="{% url 'train_results' character.model.id %}?character={{ character.name }}"
+                                    class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 ms-2">
+                                    Train
+                                </a>
+                            {% endif %}
+                        
                             {% endif %}
                         </div>
+
                     </div>
 
                 </div>
@@ -63,7 +85,9 @@
 
         <!-- Chat / Status Button -->
         {% if character.model %}
+        
         {% with status=character.model.training_status|lower %}
+        
         {% if status == "succeeded" or status == "completed" %}
         <!-- Chat button when succeeded -->
         <a href="{% url 'start_chat' character.model.id %}"
@@ -71,40 +95,49 @@
             style="width:90px;height:90px;font-size:1rem;border-radius:12px;">
             Chat
         </a>
-
+        
         {% elif status == "failed" %}
-        <!-- Failed status button -->
         <button class="btn btn-danger d-flex align-items-center justify-content-center" disabled
             style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.9;"
-            title="Fine-tuning failed for this model. Please retrain.">
+            title="Fine-tuning failed. Retrain the model.">
             ❌ Failed
         </button>
-
+        
         {% elif status == "cancelled" or status == "canceled" %}
-        <!-- Canceled status button -->
         <button class="btn btn-warning d-flex align-items-center justify-content-center" disabled
             style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.9;"
-            title="Training was canceled before completion.">
+            title="Training was canceled. Retrain the model.">
             ⚠️ Canceled
         </button>
-
+        
         {% else %}
-        <!-- Training (default) -->
+        <!-- Model still training -->
         <button class="btn btn-secondary d-flex align-items-center justify-content-center" disabled
             style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.7;"
-            title="Model training in progress ({{ character.model.training_status|capfirst }}).">
+            title="Training in progress ({{ character.model.training_status|capfirst }}).">
             ⏳ Training
         </button>
         {% endif %}
+        
         {% endwith %}
+        
+        {% elif character.dataset_path %}
+        <!-- TRAIN MODEL BUTTON (fix) -->
+        <a href="{% url 'train_model' %}?character={{ character.name }}"
+            class="btn btn-success d-flex align-items-center justify-content-center"
+            style="width:90px;height:90px;font-size:1rem;border-radius:12px;">
+            Train Model
+        </a>
+        
         {% else %}
-        <!-- No model linked -->
+        <!-- No model, no dataset -->
         <button class="btn btn-secondary d-flex align-items-center justify-content-center" disabled
             style="width:90px;height:90px;font-size:1rem;border-radius:12px;opacity:.7;"
-            title="No model linked for this character.">
+            title="No dataset available. Scrape character first.">
             No Model
         </button>
         {% endif %}
+
 
         {% if character.model %}
         <div class="modal fade" id="editNotesModal{{ character.model.id }}" tabindex="-1">

@@ -21,13 +21,15 @@ def scrape_results(request, character_name):
     })
 
 def train_results(request, model_id):
-    # Fetch model
     trained_model = get_object_or_404(TrainedModel, id=model_id)
 
-    # OneToOne training metrics
-    metrics = getattr(trained_model, "metrics", None)
+    character_name = request.GET.get("character")
+    character = None
+    if character_name:
+        character = Character.objects.filter(name__iexact=character_name).first()
 
-    return render(request, "training_results.html", {
+    return render(request, "train_results.html", {
         "model": trained_model,
-        "metrics": metrics,
+        "character": character,
+        "metrics": getattr(trained_model, "metrics", None)
     })

@@ -1,3 +1,5 @@
+from django.utils import timezone
+from analytics.models import TrainingMetrics
 from scraper.models import Character
 from training.models import TrainedModel
 from . import trainer
@@ -19,7 +21,9 @@ class TrainerManager:
             return None
         
         print(f"⏳ Tuning GPT model on conversational dataset")
-        job = trainer.train(csv_path, character_name)
+        result = trainer.train(csv_path, character_name)
+        job = result["job"]
+        rewritten_preview = result.get("rewritten_preview", [])
 
         print(f"⏳ Saving trained model to DB")
         trained_model  = self.create_trained_model(job)
@@ -28,9 +32,19 @@ class TrainerManager:
         trained_model.character = self.character
         trained_model.save()
 
+        print(f"✅ Saved {self.character} training metrics")
+        metrics, _ = TrainingMetrics.objects.get_or_create(trained_model=trained_model)
+
+        metrics.total_quotes_used = result["total_quotes_used"]
+        metrics.quotes_removed = result["quotes_removed"]
+        metrics.dataset_size_kb = result["dataset_size_kb"]
+        metrics.fine_tune_start = timezone.now()
+        metrics.job_status = job.status
+        metrics.save()
+
         print(f"✅ Trained model job begun for: {self.character}")
 
-        return trained_model
+        return trained_model, rewritten_preview
     
     def create_trained_model(self, job):
         # Create the TrainedModel Object
@@ -46,4 +60,4 @@ class TrainerManager:
             trained_model.notes = f"{job.model} re-trained on {self.character.name} quotes."
             trained_model.save()
 
-        return trained_model 
+        return trained_model
