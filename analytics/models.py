@@ -1,5 +1,8 @@
 from django.db import models
 
+from scraper.models import Character
+from training.models import TrainedModel
+
 # Create your models here.
 class ScrapeMetrics(models.Model):
     character = models.OneToOneField("scraper.Character", on_delete=models.CASCADE, related_name="scrape_metrics")
@@ -39,3 +42,10 @@ class TrainingMetrics(models.Model):
 
     job_status = models.CharField(max_length=50, default="pending")
     final_model_name = models.CharField(max_length=255, null=True, blank=True)
+
+class RewrittenQuote(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="rewritten_quotes")
+    trained_model = models.ForeignKey(TrainedModel, null=True, blank=True, on_delete=models.CASCADE, related_name="rewritten_quotes")
+    original_quote = models.TextField()
+    rewritten_quote = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)

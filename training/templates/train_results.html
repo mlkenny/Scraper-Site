@@ -52,7 +52,23 @@
                     <ul class="list-group">
                         {% for q in rewritten_quotes %}
                         <li class="list-group-item">
-                            “{{ q }}”
+                    
+                            <div class="row">
+                    
+                                <!-- LEFT: Original Quote -->
+                                <div class="col-6 border-end">
+                                    <span class="badge bg-secondary">Original</span>
+                                    <p class="mb-0 text-muted" style="white-space: pre-wrap;">“{{ q.original_quote }}”</p>
+                                </div>
+                    
+                                <!-- RIGHT: Rewritten Quote -->
+                                <div class="col-6">
+                                    <span class="badge bg-primary">Rewritten</span>
+                                    <p class="mb-0" style="white-space: pre-wrap;">“{{ q.rewritten_quote }}”</p>
+                                </div>
+                    
+                            </div>
+                    
                         </li>
                         {% endfor %}
                     </ul>
@@ -115,14 +131,36 @@
         </div>
 
 
-        <!-- RIGHT COLUMN: PIE CHART -->
+        <!-- RIGHT COLUMN: PIE CHARTS -->
         <div class="col-md-3">
-            <div class="card shadow-sm">
+        
+            <!-- SAFETY BREAKDOWN -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
-                    <strong>Quote Breakdown</strong>
+                    <strong>Safety Breakdown</strong>
                 </div>
                 <div class="card-body">
-                    <canvas id="quotePieChart"></canvas>
+                    <canvas id="safetyChart"></canvas>
+                </div>
+            </div>
+        
+            <!-- QUOTE LENGTH DISTRIBUTION -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <strong>Quote Length Distribution</strong>
+                </div>
+                <div class="card-body">
+                    <canvas id="lengthChart"></canvas>
+                </div>
+            </div>
+        
+            <!-- MODEL TRAINING OUTCOME -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <strong>Training Outcome</strong>
+                </div>
+                <div class="card-body">
+                    <canvas id="outcomeChart"></canvas>
                 </div>
             </div>
         </div>
@@ -137,4 +175,99 @@
     </div>
 
 </div>
+
+<!-- CHART.JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        /* ============================
+           SAFETY BREAKDOWN CHART
+        ============================ */
+        (function () {
+            const canvas = document.getElementById('safetyChart');
+            if (!canvas) return;
+
+            let safeQuotes = 0;
+            let removedQuotes = 0;
+
+            /* {% if metrics %} */
+            safeQuotes = Number("{{ metrics.total_quotes_used }}");
+            removedQuotes = Number("{{ metrics.quotes_removed }}");
+            /*{% endif %} */
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Safe Quotes', 'Removed Quotes'],
+                    datasets: [{
+                        data: [safeQuotes, removedQuotes],
+                        backgroundColor: ['#198754', '#dc3545']
+                    }]
+                }
+            });
+        })();
+
+
+        /* ============================
+           QUOTE LENGTH DISTRIBUTION
+        ============================ */
+        (function () {
+            const canvas = document.getElementById('lengthChart');
+            if (!canvas) return;
+
+            const shortCount = Number("{{ length_short|default:0 }}");
+            const mediumCount = Number("{{ length_medium|default:0 }}");
+            const longCount = Number("{{ length_long|default:0 }}");
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Short (<50)', 'Medium (50–120)', 'Long (>120)'],
+                    datasets: [{
+                        data: [shortCount, mediumCount, longCount],
+                        backgroundColor: ['#0d6efd', '#6f42c1', '#fd7e14']
+                    }]
+                }
+            });
+        })();
+
+
+        /* ============================
+           MODEL TRAINING OUTCOME
+        ============================ */
+        (function () {
+            const canvas = document.getElementById('outcomeChart');
+            if (!canvas) return;
+
+            const outcome = "{{ model.training_status|default:'' }}";
+
+            const statusData = [
+                outcome === "succeeded" ? 1 : 0,
+                outcome === "failed" ? 1 : 0,
+                outcome === "canceled" ? 1 : 0,
+                outcome === "validating_files" ? 1 : 0
+            ];
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Succeeded', 'Failed', 'Canceled', 'Validating Files'],
+                    datasets: [{
+                        data: statusData,
+                        backgroundColor: [
+                            '#198754', // succeeded (green)
+                            '#dc3545', // failed (red)
+                            '#6c757d', // canceled (gray)
+                            '#0d6efd'  // validating files (blue)
+                        ]
+                    }]
+                }
+            });
+        })();
+
+    });
+</script>
+
 {% endblock %}

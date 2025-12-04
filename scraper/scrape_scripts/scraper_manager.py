@@ -27,6 +27,7 @@ class ScraperManager:
         with open(file_path, "r", encoding="utf-8") as f:
             num_of_lines = len([line for line in f if line.strip()])
         print(f"\n⏳ Cleaning dataset with openai moderation check for {num_of_lines} lines")
+        print(f"⏳ This may take up to 90 seconds")
         # 2. Clean dataset (now character exists)
         csv_path, kept, removed = scraper.clean_dataset(file_path, character)
         

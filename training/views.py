@@ -6,6 +6,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from openai import InvalidWebhookSignatureError, OpenAI
 
+from analytics.models import RewrittenQuote
 from scraper.models import Character
 from chat.models import ChatSession
 
@@ -20,24 +21,19 @@ def train_model(request):
     try:
         character = Character.objects.get(name=character_name)
 
-        rewritten_quotes = []  # Always define a default
+        # Always run training (same structure, just cleaned)
+        manager = TrainerManager(character)
+        model, metrics = manager.train_model()
 
-        # Case 1: Character already has a model (no new training)
-        if hasattr(character, "model") and character.model:
-            model = character.model
+        # NEW: rewritten quotes must always come from DB
+        rewritten_quotes = RewrittenQuote.objects.filter(
+            character=character
+        ).order_by('-created_at')
 
-            # OPTIONAL: If you saved preview in metrics, load it
-            if hasattr(model, "metrics") and hasattr(model.metrics, "rewritten_preview"):
-                rewritten_quotes = model.metrics.rewritten_preview
-
-        # Case 2: No model → run training
-        else:
-            manager = TrainerManager(character)
-            model, rewritten_quotes = manager.train_model()
-
-        # Render page with safe rewritten_quotes
         return render(request, "model.html", {
             "character": character,
+            "model": model,
+            "metrics": metrics,
             "rewritten_quotes": rewritten_quotes,
         })
 
