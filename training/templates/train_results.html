@@ -1,0 +1,273 @@
+{% extends 'partials/base.html' %}
+
+{% block title %}Train Results{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <h2 class="text-center mb-4">Training Results for <strong>{{ character.name }}</strong></h2>
+
+    <div class="row">
+
+        <!-- LEFT COLUMN: Character Details -->
+        <div class="col-md-3">
+
+            <!-- Character Image -->
+            <div class="d-flex align-items-center justify-content-center mb-3"
+                style="width: 100%; height: 180px; border-radius: 12px; overflow: hidden; background: #f5f5f5;">
+                {% if character.image_url %}
+                <img src="{{ character.image_url }}" alt="{{ character.name }}"
+                    style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                <div class="text-muted small text-center">No<br>Image</div>
+                {% endif %}
+            </div>
+
+            <!-- Character Info -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <strong>Character Info</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ character.name }}</p>
+                    <p><strong>Dataset Path:</strong> {{ character.dataset_path|default:"N/A" }}</p>
+                    <p><strong>Created At:</strong> {{ character.created_at|date:"F j, Y, g:i a" }}</p>
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- MIDDLE COLUMN: Quotes + Training Metrics -->
+        <div class="col-md-6">
+
+            <!-- Rewritten Quotes Window -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">
+                    <strong>Rewritten Quotes</strong>
+                </div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+            
+                    {% if rewritten_quotes %}
+                    <ul class="list-group">
+                        {% for q in rewritten_quotes %}
+                        <li class="list-group-item">
+                    
+                            <div class="row">
+                    
+                                <!-- LEFT: Original Quote -->
+                                <div class="col-6 border-end">
+                                    <span class="badge bg-secondary">Original</span>
+                                    <p class="mb-0 text-muted" style="white-space: pre-wrap;">“{{ q.original_quote }}”</p>
+                                </div>
+                    
+                                <!-- RIGHT: Rewritten Quote -->
+                                <div class="col-6">
+                                    <span class="badge bg-primary">Rewritten</span>
+                                    <p class="mb-0" style="white-space: pre-wrap;">“{{ q.rewritten_quote }}”</p>
+                                </div>
+                    
+                            </div>
+                    
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted">No rewritten quotes available.</p>
+                    {% endif %}
+            
+                </div>
+            </div>
+
+            <!-- Training Metrics -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <strong>Training Information</strong>
+                </div>
+                <div class="card-body">
+
+                    {% if metrics %}
+                    <table class="table table-bordered">
+                        <tr>
+                            <th>Status</th>
+                            <td>{{ metrics.job_status }}</td>
+                        </tr>
+                        <tr>
+                            <th>Total Quotes Used</th>
+                            <td>{{ metrics.total_quotes_used }}</td>
+                        </tr>
+                        <tr>
+                            <th>Quotes Removed</th>
+                            <td>{{ metrics.quotes_removed }}</td>
+                        </tr>
+                        <tr>
+                            <th>Dataset Size</th>
+                            <td>{{ metrics.dataset_size_kb }} KB</td>
+                        </tr>
+                        <tr>
+                            <th>Fine-Tune Start</th>
+                            <td>{{ metrics.fine_tune_start }}</td>
+                        </tr>
+                        <tr>
+                            <th>Fine-Tune End</th>
+                            <td>{{ metrics.fine_tune_end }}</td>
+                        </tr>
+                        <tr>
+                            <th>Duration</th>
+                            <td>{{ metrics.duration_minutes }} minutes</td>
+                        </tr>
+                        <tr>
+                            <th>Final Model Name</th>
+                            <td>{{ metrics.final_model_name }}</td>
+                        </tr>
+                    </table>
+                    {% else %}
+                    <p class="text-muted">No training metrics available.</p>
+                    {% endif %}
+
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- RIGHT COLUMN: PIE CHARTS -->
+        <div class="col-md-3">
+        
+            <!-- SAFETY BREAKDOWN -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <strong>Safety Breakdown</strong>
+                </div>
+                <div class="card-body">
+                    <canvas id="safetyChart"></canvas>
+                </div>
+            </div>
+        
+            <!-- QUOTE LENGTH DISTRIBUTION -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <strong>Quote Length Distribution</strong>
+                </div>
+                <div class="card-body">
+                    <canvas id="lengthChart"></canvas>
+                </div>
+            </div>
+        
+            <!-- MODEL TRAINING OUTCOME -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <strong>Training Outcome</strong>
+                </div>
+                <div class="card-body">
+                    <canvas id="outcomeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Back Button -->
+    <div class="text-center mt-4">
+        <a href="{% url 'character_select' %}" class="btn btn-secondary">
+            ⬅ Return to Character Selection
+        </a>
+    </div>
+
+</div>
+
+<!-- CHART.JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        /* ============================
+           SAFETY BREAKDOWN CHART
+        ============================ */
+        (function () {
+            const canvas = document.getElementById('safetyChart');
+            if (!canvas) return;
+
+            let safeQuotes = 0;
+            let removedQuotes = 0;
+
+            /* {% if metrics %} */
+            safeQuotes = Number("{{ metrics.total_quotes_used }}");
+            removedQuotes = Number("{{ metrics.quotes_removed }}");
+            /*{% endif %} */
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Safe Quotes', 'Removed Quotes'],
+                    datasets: [{
+                        data: [safeQuotes, removedQuotes],
+                        backgroundColor: ['#198754', '#dc3545']
+                    }]
+                }
+            });
+        })();
+
+
+        /* ============================
+           QUOTE LENGTH DISTRIBUTION
+        ============================ */
+        (function () {
+            const canvas = document.getElementById('lengthChart');
+            if (!canvas) return;
+
+            const shortCount = Number("{{ length_short|default:0 }}");
+            const mediumCount = Number("{{ length_medium|default:0 }}");
+            const longCount = Number("{{ length_long|default:0 }}");
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Short (<50)', 'Medium (50–120)', 'Long (>120)'],
+                    datasets: [{
+                        data: [shortCount, mediumCount, longCount],
+                        backgroundColor: ['#0d6efd', '#6f42c1', '#fd7e14']
+                    }]
+                }
+            });
+        })();
+
+
+        /* ============================
+           MODEL TRAINING OUTCOME
+        ============================ */
+        (function () {
+            const canvas = document.getElementById('outcomeChart');
+            if (!canvas) return;
+
+            const outcome = "{{ model.training_status|default:'' }}";
+
+            const statusData = [
+                outcome === "succeeded" ? 1 : 0,
+                outcome === "failed" ? 1 : 0,
+                outcome === "canceled" ? 1 : 0,
+                outcome === "validating_files" ? 1 : 0
+            ];
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Succeeded', 'Failed', 'Canceled', 'Validating Files'],
+                    datasets: [{
+                        data: statusData,
+                        backgroundColor: [
+                            '#198754', // succeeded (green)
+                            '#dc3545', // failed (red)
+                            '#6c757d', // canceled (gray)
+                            '#0d6efd'  // validating files (blue)
+                        ]
+                    }]
+                }
+            });
+        })();
+
+    });
+</script>
+
+{% endblock %}

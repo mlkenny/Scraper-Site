@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'training',
     'selection',
     'chat',
+    'analytics',
     'crispy_forms',
     'crispy_bootstrap5',
 ]
