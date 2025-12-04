@@ -1,10 +1,12 @@
 import json
+from django.utils import timezone
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from openai import InvalidWebhookSignatureError, OpenAI
 
+from analytics.models import RewrittenQuote
 from scraper.models import Character
 from chat.models import ChatSession
 
@@ -15,24 +17,34 @@ from training.openAI.trainer_manager import TrainerManager
 
 def train_model(request):
     character_name = request.GET.get("character")
+
     try:
         character = Character.objects.get(name=character_name)
 
-        if hasattr(character, "model"):
-            model = character.model
-        else:
-            manager = TrainerManager(character)
-            model = manager.train_model()
+        # Always run training (same structure, just cleaned)
+        manager = TrainerManager(character)
+        model, metrics = manager.train_model()
+
+        # NEW: rewritten quotes must always come from DB
+        rewritten_quotes = RewrittenQuote.objects.filter(
+            character=character
+        ).order_by('-created_at')
 
         return render(request, "model.html", {
             "character": character,
+            "model": model,
+            "metrics": metrics,
+            "rewritten_quotes": rewritten_quotes,
         })
 
     except Character.DoesNotExist:
         print(f"No character found with the name: {character_name}")
-        return redirect("scrape_character")
+        return redirect("character_select")
 
-client = OpenAI(api_key=settings.OPENAI_KEY)
+client = OpenAI(
+    api_key=settings.OPENAI_KEY,
+    webhook_secret=settings.OPENAI_WEBHOOK_SECRET,
+)
 
 @csrf_exempt
 def openai_webhook(request):
@@ -85,8 +97,22 @@ def openai_webhook(request):
 
         trained.training_status = status
 
+        # Save to training metrics
+        metrics = trained.metrics
+        metrics.job_status = status
+
+        if status == "succeeded":
+            metrics.final_model_name = model_name
+
+        metrics.fine_tune_end = timezone.now()
+        metrics.duration_minutes = (
+            (metrics.fine_tune_end - metrics.fine_tune_start).total_seconds() / 60
+        )
+
+        metrics.save()
+
         # 5. Update model_id on success
-        if status == "succeeded" and model_name:
+        if status == "succeeded":
             trained.model_id = model_name
             print(f"🎉 Linked model_id: {model_name}")
 

@@ -22,9 +22,12 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 
+from analytics.models import ScrapedQuote
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from scraper.models import Character
 
 # ---------------------------
 # Config
@@ -396,7 +399,7 @@ def is_safe_quote(text: str) -> bool:
         return False
     
 
-def clean_dataset(csv_path, character_name):
+def clean_dataset(csv_path, character):
     """
     Clean a scraped CSV by removing unsafe, duplicate, or junk quotes.
     Overwrites the original CSV file with a cleaned version.
@@ -422,15 +425,26 @@ def clean_dataset(csv_path, character_name):
             seen.add(quote.lower())
 
             if is_safe_quote(quote):
-                writer.writerow({
-                    "source_url": row.get("source_url", ""),
-                    "quote": quote
-                })
-                kept += 1
+                if is_safe_quote(quote):
+                    # Write to cleaned CSV
+                    writer.writerow({
+                        "source_url": row.get("source_url", ""),
+                        "quote": quote
+                    })
+
+                    # Also save to DB
+                    ScrapedQuote.objects.create(
+                        character=Character.objects.get(name__iexact=character),
+                        source_url=row.get("source_url", ""),
+                        quote=quote,
+                        is_safe=True
+                    )
+
+                    kept += 1
             else:
                 removed += 1
 
     new_path = temp_path.replace(csv_path)
-    print(f"✅ Cleaned dataset for {character_name}: {csv_path}")
+    print(f"✅ Cleaned dataset for {character.name}: {csv_path}")
     print(f"Kept: {kept} | Removed: {removed}")
-    return new_path
+    return new_path, kept, removed

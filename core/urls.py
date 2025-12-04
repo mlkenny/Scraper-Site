@@ -22,6 +22,7 @@ import scraper.views as scraper_views
 import training.views as training_views
 import selection.views as selection_views
 import chat.views as chat_views
+import analytics.views as analytics_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -35,6 +36,9 @@ urlpatterns = [
     path('character_select/', selection_views.character_select, name='character_select'),
     path('delete-character/<str:name>/', selection_views.delete_character, name='delete_character'),
     path("characters/edit-notes/<int:model_id>/", selection_views.edit_notes, name="edit_notes"),
+
+    path("scrape/results/<str:character_name>/", analytics_views.scrape_results, name="scrape_results"),
+    path("train/results/<int:model_id>/", analytics_views.train_results, name="train_results"),
 
     path('<int:model_id>/start/', chat_views.start_chat, name='start_chat'),
     path('session/<int:session_id>/', chat_views.chat_window, name='chat_window'),

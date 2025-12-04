@@ -24,7 +24,12 @@ def rewrite_dataset(input_path: str, output_path: str = None) -> Path:
         "Keep the character's tone and remove all article or narration text. "
         "Make each assistant reply sound like real dialogue."
     )
-    print(f"\n⏳ Starting rewriting process")
+
+    # Count before moderation
+    with open(input_path, "r", encoding="utf-8") as f:
+        num_of_lines = len([line for line in f if line.strip()])
+
+    print(f"\n⏳ Starting rewriting process on {num_of_lines} quotes")
     with open(input_path, "r", encoding="utf-8") as infile, \
          open(output_path, "w", encoding="utf-8") as outfile:
         for i, line in enumerate(infile, 1):

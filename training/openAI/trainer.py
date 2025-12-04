@@ -8,9 +8,15 @@ from openai import OpenAI
 
 from django.conf import settings
 
+from scraper.models import Character
 from training.models import TrainedModel
+from analytics.models import RewrittenQuote
 
 from . import rewriter
+
+APP_DIR = Path(__file__).resolve().parent.parent
+DATASET_DIR = APP_DIR / "datasets"
+DATASET_DIR.mkdir(exist_ok=True)
 
 # Initialize client (reads key from OPENAI_API_KEY env variable)
 client = OpenAI(api_key=settings.OPENAI_KEY)
@@ -46,7 +52,7 @@ def csv_to_jsonl(csv_path: str, character_name: str) -> Path:
     Each line becomes one training example.
     """
     csv_path = Path(csv_path)
-    jsonl_path = Path(tempfile.gettempdir()) / f"{character_name.lower().replace(' ', '_')}_auto.jsonl"
+    jsonl_path = DATASET_DIR / f"{character_name.lower().replace(' ', '_')}_auto.jsonl"
 
     # Simple, generic user prompts to make conversations natural
     user_prompts = [
@@ -99,55 +105,137 @@ def moderation_check(jsonl_path: str, safe_jsonl: str):
     ''' MODERATION CHECK '''
     print(f"\n⏳ Performing OpenAI moderation check")
 
+    rewritten_quotes_buffer = []
+
     with open(jsonl_path, "r", encoding="utf-8") as infile, \
          open(safe_jsonl, "w", encoding="utf-8") as outfile:
         for i, line in enumerate(infile, 1):
             data = json.loads(line)
-            text = " ".join(m["content"] for m in data["messages"])
+            msgs = data.get("messages", [])
+            text = " ".join(m.get("content", "") for m in msgs)
             result = client.moderations.create(
                 model="omni-moderation-latest",
                 input=text
             )
             if not result.results[0].flagged:
                 outfile.write(line)
+                original = msgs[0]["content"]
+                rewritten = msgs[-1]["content"]
+                rewritten_quotes_buffer.append((original, rewritten))
             else:
                 cats = result.results[0].categories
                 print(f"⚠️ Line {i} removed due to moderation flag:")
-                print("   sexual:", cats.sexual, " sexual_minors:", cats.sexual_minors,
-                    " violence:", cats.violence, "\n")
+                for cat, value in cats.model_dump().items():
+                    if value:
+                        print(f"   - {cat}")
     # Create fine tuning job file.
     with open(safe_jsonl, "rb") as f:
-        return client.files.create(file=f, purpose="fine-tune")
+        return client.files.create(file=f, purpose="fine-tune"), rewritten_quotes_buffer
 
 def train(csv_path: str, character_name: str):
     """
     Fine-tune gpt-3.5-turbo using data from a CSV file.
     """
-    # Check if safe_jsonl path exists, indicates model has dataset that has been checked.
-    jsonl_path = Path(tempfile.gettempdir()) / f"{character_name.lower().replace(' ', '_')}_auto.jsonl"
-    safe_jsonl = jsonl_path.with_name(f"{jsonl_path.stem}_safe.jsonl")
-    if safe_jsonl.exists():
-        print("🛑 Character already has moderated dataset")
-        file_obj = client.files.create(file=open(safe_jsonl, "rb"), purpose="fine-tune")
-    else:
-        jsonl_path = csv_to_jsonl(csv_path, character_name)
-        rewritten_jsonl = rewriter.rewrite_dataset(jsonl_path)
-        file_obj = moderation_check(jsonl_path=rewritten_jsonl, safe_jsonl=safe_jsonl)
+    base_name = character_name.lower().replace(" ", "_")
 
-    # Start job.
+    jsonl_path = DATASET_DIR / f"{base_name}_auto.jsonl"
+    safe_jsonl = DATASET_DIR / f"{base_name}_auto_safe.jsonl"
+
+    # ---- ALWAYS initialize metrics ----
+    safe_count = 0
+    rewritten_count = 0
+    removed_count = 0
+    dataset_size_kb = 0
+    character = Character.objects.get(name=character_name)
+    rewritten_quotes_buffer = []
+
+    # ---- CASE 1: Already has a safe dataset ----
+    if safe_jsonl.exists():
+        print(f"🛑 Character already has moderated dataset")
+        print(f"🛑 Moderated dataset exists at {safe_jsonl}\n")
+
+        # Count safe lines
+        with open(safe_jsonl, "r", encoding="utf-8") as f:
+            safe_lines = [line for line in f if line.strip()]
+        safe_count = len(safe_lines)
+
+        # In this case, rewritten_count == safe_count (we don't have the raw rewritten file)
+        rewritten_count = safe_count
+        removed_count = 0
+
+        # Get size of safe jsonl
+        dataset_size_kb = round(safe_jsonl.stat().st_size / 1024, 2)
+
+        # Upload file
+        file_obj = client.files.create(file=open(safe_jsonl, "rb"), purpose="fine-tune")
+
+        for line in safe_lines:
+            data = json.loads(line)
+            msgs = data["messages"]
+            original = msgs[0]["content"]
+            rewritten = msgs[-1]["content"]
+            rewritten_quotes_buffer.append((original, rewritten))
+
+    else:
+        # ---- CASE 2: Need to build + moderate dataset ----
+        jsonl_path = csv_to_jsonl(csv_path, character_name)
+
+        rewritten_jsonl = rewriter.rewrite_dataset(
+            input_path=jsonl_path,
+            output_path=DATASET_DIR / f"{base_name}_rewritten.jsonl"
+        )
+
+        # Count rewritten lines BEFORE moderation
+        with open(rewritten_jsonl, "r", encoding="utf-8") as f:
+            rewritten_lines = [line for line in f if line.strip()]
+        rewritten_count = len(rewritten_lines)
+
+        file_obj, rewritten_quotes_buffer = moderation_check(jsonl_path=rewritten_jsonl, safe_jsonl=safe_jsonl)
+
+        # Count safe lines AFTER moderation
+        with open(safe_jsonl, "r", encoding="utf-8") as f:
+            safe_lines = [line for line in f if line.strip()]
+        safe_count = len(safe_lines)
+
+        removed_count = rewritten_count - safe_count
+        dataset_size_kb = round(Path(safe_jsonl).stat().st_size / 1024, 2)
+
+    # ---- Same for both branches below ----
+
     job = client.fine_tuning.jobs.create(
         training_file=file_obj.id,
         model="gpt-3.5-turbo",
         suffix=character_name.lower().replace(" ", "_"),
         metadata={
-            "character" : character_name
+            "character": character_name
         }
     )
 
-    trained_model = TrainedModel.objects.filter(character__name__iexact=character_name).first()
-    if trained_model:
+    trained_model, created = TrainedModel.objects.get_or_create(
+        character=character,
+        defaults={
+            "job_id": job.id,
+            "training_status": job.status,
+        },
+    )
+
+    if not created:
+        # already existed, just update fields
         trained_model.job_id = job.id
         trained_model.training_status = job.status
         trained_model.save(update_fields=["job_id", "training_status"])
 
-    return job
+    for original, rewritten in rewritten_quotes_buffer:
+        RewrittenQuote.objects.create(
+            character=character,
+            original_quote=original,
+            rewritten_quote=rewritten,
+            trained_model=trained_model
+        )
+
+    return {
+        "job": job,
+        "total_quotes_used": safe_count,
+        "quotes_removed": removed_count,
+        "dataset_size_kb": dataset_size_kb,
+    }
